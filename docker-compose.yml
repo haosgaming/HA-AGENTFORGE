@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7.2-alpine
+    container_name: ha-agentforge-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --save 60 1
+    volumes:
+      - redis_data:/data
+    networks:
+      - agentforge_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: ha-agentforge-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=sqlite+aiosqlite:////data/ha_agentforge.db
+      - REDIS_URL=redis://redis:6379/0
+      - HA_CORE_HOST=192.168.1.110
+      - HA_CORE_PORT=8123
+      - HA_SSH_PORT=22
+      - HA_SSH_USER=root
+      - HA_SSH_KEY_PATH=/config/.ssh/id_rsa
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FERNET_SECRET_KEY=gAAAAABl8ZqK9V0u1w2x3y4z5A6B7C8D9E0F1G2H3I4J5K6L7M8N9O0P1Q2R3S4T5U6V7W8X9Y0Z==
+      - HA_WEBHOOK_ID=agentforge_alert_webhook
+    volumes:
+      - ./data:/data
+      - /config/.ssh/id_rsa:/config/.ssh/id_rsa:ro
+      - ./packages:/config/packages
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - agentforge_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: ha-agentforge-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - agentforge_net
+
+networks:
+  agentforge_net:
+    driver: bridge
+
+volumes:
+  redis_data:

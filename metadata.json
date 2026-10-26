@@ -1,0 +1,6 @@
+{
+  "name": "HA-AgentForge",
+  "description": "Orchestrátor, IDE a exekuční prostředí pro tvorbu promptů, generování Python skriptů a nasazování autonomních agentů pro Home Assistant Core (HAOS).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
