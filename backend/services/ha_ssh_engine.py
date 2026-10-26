@@ -160,7 +160,8 @@ class HaSshEngine:
     async def _simulate_ha_command(self, command: str, error_notice: Optional[str] = None) -> Dict[str, Any]:
         """High-fidelity simulation for command dispatch and inspection."""
         await asyncio.sleep(0.1)
-        if "ha core check" in command:
+        lower = command.lower()
+        if "ha core check" in lower:
             return {
                 "success": True,
                 "exit_code": 0,
@@ -168,11 +169,43 @@ class HaSshEngine:
                 "stderr": "",
                 "host": self.host
             }
-        elif "ha core restart" in command:
+        elif "ha core logs" in lower:
             return {
                 "success": True,
                 "exit_code": 0,
-                "stdout": "Home Assistant Core restart initiated.\nWaiting for core container to become healthy...",
+                "stdout": "2026-10-26 16:10:02.114 INFO (MainThread) [homeassistant.bootstrap] Home Assistant initialized in 2.14s\n2026-10-26 16:10:03.420 INFO (MainThread) [homeassistant.components.zha] ZHA coordinator initialized on /dev/ttyUSB0 (Sonoff Dongle-E)\n2026-10-26 16:10:04.102 INFO (MainThread) [homeassistant.components.sensor] Updating sensor.carspa_battery_voltage -> 13.92 V\n2026-10-26 16:10:06.012 INFO (MainThread) [homeassistant.core] No fatal errors detected. Core status: HEALTHY.",
+                "stderr": "",
+                "host": self.host
+            }
+        elif "ha core restart" in lower:
+            return {
+                "success": True,
+                "exit_code": 0,
+                "stdout": "Home Assistant Core restart initiated.\nSending SIGTERM to container homeassistant (PID 14820)\nContainer started in 2.84s. Core is online on 192.168.1.110:8123.",
+                "stderr": "",
+                "host": self.host
+            }
+        elif "ha supervisor restart" in lower:
+            return {
+                "success": True,
+                "exit_code": 0,
+                "stdout": "Restarting Home Assistant Supervisor...\nSupervisor container restarted (PID 819). API ready on /run/supervisor.sock.",
+                "stderr": "",
+                "host": self.host
+            }
+        elif "fsck" in lower or "filesystem" in lower:
+            return {
+                "success": True,
+                "exit_code": 0,
+                "stdout": "e2fsck 1.47.0 (5-Feb-2023)\n/dev/sda8: clean, 214580/1310720 files, 1892040/5242880 blocks\nFilesystem integrity: 100% OK. Zero bad sectors detected.",
+                "stderr": "",
+                "host": self.host
+            }
+        elif "df -h" in lower:
+            return {
+                "success": True,
+                "exit_code": 0,
+                "stdout": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda8        20G  7.2G   12G  38% /data\noverlay          20G  7.2G   12G  38% /config",
                 "stderr": "",
                 "host": self.host
             }

@@ -72,3 +72,18 @@ export interface NetworkNode {
   mac?: string;
   status: "ONLINE" | "STANDBY" | "WARNING";
 }
+
+export interface CronTask {
+  id: string;
+  name: string;
+  entity_id: string;
+  action: "toggle" | "turn_on" | "turn_off";
+  cron_expression: string;
+  human_readable: string;
+  is_active: boolean;
+  last_run: string | null;
+  next_run: string;
+  execution_count: number;
+  last_status: "SUCCESS" | "FAILED" | "PENDING";
+  created_at: string;
+}

@@ -11,24 +11,31 @@ import {
   Trash2,
   CheckCircle2,
   AlertTriangle,
-  Clock
+  Clock,
+  Calendar
 } from "lucide-react";
-import { AgentInstance, AgentStatusType } from "../types";
+import { AgentInstance, AgentStatusType, CronTask } from "../types";
+import { HaosResourceMonitor } from "./HaosResourceMonitor";
+import { AgentCpuHeatmap } from "./AgentCpuHeatmap";
 
 interface AgentManagerViewProps {
   agents: AgentInstance[];
+  cronTasks?: CronTask[];
   onStartAgent: (id: number) => void;
   onStopAgent: (id: number) => void;
   onEmergencyStopAll: () => void;
   onSendWebhookAlert: (agentId: number) => void;
+  onSshDiagnosticRequest?: (command: string) => void;
 }
 
 export const AgentManagerView: React.FC<AgentManagerViewProps> = ({
   agents,
+  cronTasks = [],
   onStartAgent,
   onStopAgent,
   onEmergencyStopAll,
   onSendWebhookAlert,
+  onSshDiagnosticRequest,
 }) => {
   const [selectedAgentId, setSelectedAgentId] = useState<number>(agents[0]?.id || 1);
   const activeAgent = agents.find((a) => a.id === selectedAgentId) || agents[0];
@@ -69,6 +76,9 @@ export const AgentManagerView: React.FC<AgentManagerViewProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Real-time HAOS System Resource Monitor Widget (WebSocket Stream) */}
+      <HaosResourceMonitor onSshDiagnosticRequest={onSshDiagnosticRequest} />
+
       {/* Top Telemetry & Global Controls */}
       <div className="rog-glass p-4 text-slate-200">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -101,6 +111,69 @@ export const AgentManagerView: React.FC<AgentManagerViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Real-time Cron Task & APScheduler Monitor Section */}
+      <div className="rog-glass p-4 text-slate-200">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3 mb-3">
+          <div className="flex items-center space-x-2">
+            <Calendar className="w-4 h-4 text-purple-400" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-100">
+              Aktivní Plánovač Periodických Úloh (APScheduler &amp; Cron Monitor)
+            </h3>
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-950 border border-purple-500/50 text-purple-300 font-bold">
+              {cronTasks.filter((t) => t.is_active).length} aktivních úloh
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-3 text-xs font-mono text-slate-400">
+            <span>
+              Celkem sepnutí:{" "}
+              <strong className="text-emerald-400 font-bold">
+                {cronTasks.reduce((acc, t) => acc + t.execution_count, 0)}x
+              </strong>
+            </span>
+            <span className="text-cyan-300">Hostitel: 192.168.1.110:8123</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {cronTasks.map((task) => (
+            <div
+              key={task.id}
+              className={`p-3 rounded-xl border text-xs font-mono transition-all ${
+                task.is_active
+                  ? "bg-slate-950/80 border-purple-500/40 glow-violet"
+                  : "bg-slate-950/40 border-white/5 opacity-60"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-bold text-slate-200 truncate">{task.name}</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded text-[10px] uppercase font-bold ${
+                    task.is_active
+                      ? "bg-emerald-950 text-emerald-300 border border-emerald-500/50"
+                      : "bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  {task.is_active ? "BĚŽÍ" : "STOP"}
+                </span>
+              </div>
+              <div className="text-[11px] text-cyan-300 mb-1 truncate">
+                {task.entity_id} ({task.action})
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/5">
+                <span>
+                  Cron: <strong className="text-purple-300">{task.cron_expression}</strong>
+                </span>
+                <span className="text-emerald-400 font-bold">{task.execution_count}x OK</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* D3.js 24-Hour CPU Utilization Heatmap */}
+      <AgentCpuHeatmap agents={agents} />
 
       {/* Agents Grid and Selected Detail */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

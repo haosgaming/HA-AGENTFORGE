@@ -13,10 +13,11 @@ import {
   INITIAL_ENTITIES,
   INITIAL_AGENTS,
   INITIAL_REVISIONS,
-  INITIAL_DEPLOYMENTS
+  INITIAL_DEPLOYMENTS,
+  INITIAL_CRON_TASKS
 } from "./services/haInventoryState";
 import { analyzePythonAst, analyzeYamlPackage } from "./services/astChecker";
-import { AgentInstance, HaEntity, CodeRevision, DeploymentRecord, AstValidationResult } from "./types";
+import { AgentInstance, HaEntity, CodeRevision, DeploymentRecord, AstValidationResult, CronTask } from "./types";
 import { CheckCircle2, AlertTriangle, Bell, ShieldAlert } from "lucide-react";
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
   const [agents, setAgents] = useState<AgentInstance[]>(INITIAL_AGENTS);
   const [revisions, setRevisions] = useState<CodeRevision[]>(INITIAL_REVISIONS);
   const [deployments, setDeployments] = useState<DeploymentRecord[]>(INITIAL_DEPLOYMENTS);
+  const [cronTasks, setCronTasks] = useState<CronTask[]>(INITIAL_CRON_TASKS);
 
   // Editor State
   const [code, setCode] = useState<string>(INITIAL_REVISIONS[0].content);
@@ -421,6 +423,91 @@ if __name__ == "__main__":
     );
   };
 
+  // Cron Task Handlers
+  const handleCreateCronTask = (taskData: Omit<CronTask, "id" | "last_run" | "execution_count" | "last_status" | "created_at">) => {
+    const newTask: CronTask = {
+      ...taskData,
+      id: `cron-${Date.now()}`,
+      last_run: null,
+      execution_count: 0,
+      last_status: "PENDING",
+      created_at: new Date().toISOString().replace("T", " ").substring(0, 19),
+    };
+    setCronTasks((prev) => [newTask, ...prev]);
+    showToast(
+      "Cron Úloha Vytvořena",
+      `Úloha '${newTask.name}' naplánována (${newTask.cron_expression}) pro ${newTask.entity_id}.`,
+      "success"
+    );
+  };
+
+  const handleToggleCronTask = (taskId: string) => {
+    setCronTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, is_active: !t.is_active } : t))
+    );
+    const target = cronTasks.find((t) => t.id === taskId);
+    showToast(
+      "Stav Cron Úlohy",
+      `Úloha '${target?.name}' je nyní ${target?.is_active ? "POZASTAVENA" : "AKTIVNÍ"}.`,
+      "warn"
+    );
+  };
+
+  const handleDeleteCronTask = (taskId: string) => {
+    const target = cronTasks.find((t) => t.id === taskId);
+    setCronTasks((prev) => prev.filter((t) => t.id !== taskId));
+    showToast("Úloha Smazána", `Úloha '${target?.name}' byla odstraněna z plánovače.`, "error");
+  };
+
+  const handleExecuteCronTaskNow = (taskId: string) => {
+    const target = cronTasks.find((t) => t.id === taskId);
+    if (!target) return;
+
+    if (target.action === "toggle") {
+      const ent = entities.find((e) => e.entity_id === target.entity_id);
+      const next = ent?.state === "on" ? "off" : "on";
+      setEntities((prev) =>
+        prev.map((e) => (e.entity_id === target.entity_id ? { ...e, state: next, last_updated: "právě teď" } : e))
+      );
+    } else {
+      const next = target.action === "turn_on" ? "on" : "off";
+      setEntities((prev) =>
+        prev.map((e) => (e.entity_id === target.entity_id ? { ...e, state: next, last_updated: "právě teď" } : e))
+      );
+    }
+
+    setCronTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              last_run: new Date().toISOString().replace("T", " ").substring(0, 19),
+              execution_count: t.execution_count + 1,
+              last_status: "SUCCESS",
+            }
+          : t
+      )
+    );
+
+    // Telemetry log to Agent #1
+    setAgents((prev) =>
+      prev.map((a) =>
+        a.id === 1
+          ? {
+              ...a,
+              log_buffer: `${a.log_buffer}\n[${new Date().toLocaleTimeString()}] [APScheduler] Exekuce úlohy '${target.name}': ${target.action} -> ${target.entity_id} (OK, 0.03s)`,
+            }
+          : a
+      )
+    );
+
+    showToast(
+      "Cron Úloha Spuštěna",
+      `APScheduler vykonal povel ${target.action} na ${target.entity_id} (HAOS 192.168.1.110).`,
+      "success"
+    );
+  };
+
   const runningCount = agents.filter((a) => a.status === "RUNNING").length;
 
   return (
@@ -455,6 +542,14 @@ if __name__ == "__main__":
                 astResult={astResult}
                 affectedEntities={affectedEntities}
                 systemNotes={systemNotes}
+                revisions={revisions}
+                onLoadRevision={(rev) => {
+                  setCode(rev.content);
+                  setCodeType(rev.code_type);
+                  setAffectedEntities(rev.affected_entities);
+                  setSystemNotes(rev.system_notes);
+                  showToast("Revize Načtena", `Revize #${rev.revision_number} načtena z grepu do editoru.`, "success");
+                }}
                 onValidate={() => {
                   const res = codeType === "python" ? analyzePythonAst(code) : analyzeYamlPackage(code);
                   setAstResult(res);
@@ -479,10 +574,15 @@ if __name__ == "__main__":
         {activeTab === "agents" && (
           <AgentManagerView
             agents={agents}
+            cronTasks={cronTasks}
             onStartAgent={handleStartAgent}
             onStopAgent={handleStopAgent}
             onEmergencyStopAll={handleEmergencyStopAll}
             onSendWebhookAlert={handleSendWebhookAlert}
+            onSshDiagnosticRequest={(cmd) => {
+              setActiveTab("terminal");
+              showToast("SSH Diagnostika", `Příkaz '${cmd}' odeslán do SSH PTY konzole (192.168.1.110).`, "success");
+            }}
           />
         )}
 
@@ -490,8 +590,13 @@ if __name__ == "__main__":
         {activeTab === "entities" && (
           <HaEntityManager
             entities={entities}
+            cronTasks={cronTasks}
             onToggleSwitch={handleToggleSwitch}
             onCallService={handleCallService}
+            onCreateCronTask={handleCreateCronTask}
+            onToggleCronTask={handleToggleCronTask}
+            onDeleteCronTask={handleDeleteCronTask}
+            onExecuteCronTaskNow={handleExecuteCronTaskNow}
           />
         )}
 
@@ -507,6 +612,8 @@ if __name__ == "__main__":
           <GitHubVersioning
             revisions={revisions}
             deployments={deployments}
+            currentCode={code}
+            currentCodeType={codeType}
             onSelectRevision={(rev) => {
               setCode(rev.content);
               setCodeType(rev.code_type);

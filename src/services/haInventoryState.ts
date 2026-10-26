@@ -1,4 +1,4 @@
-import { AgentInstance, HaEntity, NetworkNode, CodeRevision, DeploymentRecord } from "../types";
+import { AgentInstance, HaEntity, NetworkNode, CodeRevision, DeploymentRecord, CronTask } from "../types";
 
 export const INVENTORY_NODES: NetworkNode[] = [
   { name: "ROUTERBE3600 (OpenWrt)", ip: "192.168.1.1", role: "Gateway / L3 Router", status: "ONLINE" },
@@ -239,5 +239,50 @@ export const INITIAL_DEPLOYMENTS: DeploymentRecord[] = [
     stdout: "Command completed successfully. Configuration valid.",
     stderr: "",
     executed_at: "2026-10-26 14:40:02",
+  },
+];
+
+export const INITIAL_CRON_TASKS: CronTask[] = [
+  {
+    id: "cron-1",
+    name: "FVE Balancer Přebytky (EMOS #1)",
+    entity_id: "switch.emos_socket_1",
+    action: "toggle",
+    cron_expression: "*/5 * * * *",
+    human_readable: "Každých 5 minut",
+    is_active: true,
+    last_run: "2026-10-26 14:50:00",
+    next_run: "2026-10-26 14:55:00",
+    execution_count: 142,
+    last_status: "SUCCESS",
+    created_at: "2026-10-26 10:00:00",
+  },
+  {
+    id: "cron-2",
+    name: "ESP32-S3 CC1101 Heartbeat",
+    entity_id: "switch.subghz_gateway_433",
+    action: "turn_on",
+    cron_expression: "0 * * * *",
+    human_readable: "Každou hodinu",
+    is_active: true,
+    last_run: "2026-10-26 14:00:00",
+    next_run: "2026-10-26 15:00:00",
+    execution_count: 36,
+    last_status: "SUCCESS",
+    created_at: "2026-10-26 11:15:00",
+  },
+  {
+    id: "cron-3",
+    name: "Noční odpojení zásuvky topení (#2)",
+    entity_id: "switch.emos_socket_2",
+    action: "turn_off",
+    cron_expression: "0 23 * * *",
+    human_readable: "Denně ve 23:00",
+    is_active: false,
+    last_run: "2026-10-25 23:00:00",
+    next_run: "2026-10-26 23:00:00",
+    execution_count: 18,
+    last_status: "SUCCESS",
+    created_at: "2026-10-24 18:30:00",
   },
 ];
