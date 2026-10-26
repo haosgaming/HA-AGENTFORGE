@@ -9,26 +9,33 @@ import {
   Sun,
   AlertTriangle,
   Sliders,
-  RotateCcw
+  RotateCcw,
+  Settings,
+  Server,
+  Layers
 } from "lucide-react";
+import { LlmProviderConfig } from "../types";
 
 interface PromptWorkbenchProps {
   onStreamGenerate: (prompt: string, contextType: "python" | "yaml", model: string, temp: number) => void;
   isStreaming: boolean;
   tokenCount: number;
+  llmConfig: LlmProviderConfig;
+  onOpenLlmConfig: () => void;
 }
 
 export const PromptWorkbench: React.FC<PromptWorkbenchProps> = ({
   onStreamGenerate,
   isStreaming,
-  tokenCount
+  tokenCount,
+  llmConfig,
+  onOpenLlmConfig
 }) => {
   const [promptText, setPromptText] = useState(
     "Vytvoř autonomní Python skript, který monitoruje napětí akumulátoru střídače Carspa MKS1000-12 (sensor.carspa_battery_voltage). Pokud napětí stoupne nad 13.8V a solární výkon (sensor.carspa_solar_power) překročí 250W, sepni RF zásuvku EMOS P0065 #1 (switch.emos_socket_1) přes ESP32-S3 bránu (192.168.1.109). Při poklesu napětí pod 12.4V zátěž okamžitě odpoj."
   );
   const [contextType, setContextType] = useState<"python" | "yaml">("python");
-  const [model, setModel] = useState<string>("gpt-4o");
-  const [temperature, setTemperature] = useState<number>(0.2);
+  const [temperature, setTemperature] = useState<number>(llmConfig.temperature || 0.2);
 
   const presets = [
     {
@@ -38,7 +45,7 @@ export const PromptWorkbench: React.FC<PromptWorkbenchProps> = ({
       text: "Vytvoř autonomní Python skript, který monitoruje napětí akumulátoru střídače Carspa MKS1000-12 (sensor.carspa_battery_voltage). Pokud napětí stoupne nad 13.8V a solární výkon (sensor.carspa_solar_power) překročí 250W, sepni RF zásuvku EMOS P0065 #1 (switch.emos_socket_1) přes ESP32-S3 bránu (192.168.1.109). Při poklesu napětí pod 12.4V zátěž okamžitě odpoj.",
     },
     {
-      label: "ESP32-S3 CC1101 Keyfob Debounce",
+      label: "ESP32-S3 CC1101 Klíčenka (Debouncing 650ms)",
       icon: Radio,
       type: "python" as const,
       text: "Vytvoř agenta obsluhujícího RF klíčenku k CC1101 (senzor sensor.cc1101_last_received_code). Při příjmu kódu tlačítka A (0x2F2F44) proveď bistabilní přepnutí (toggle) zásuvky EMOS P0065 #2 s časovým zámkem hystereze 650 ms proti rozkmitání stavu.",
@@ -47,31 +54,47 @@ export const PromptWorkbench: React.FC<PromptWorkbenchProps> = ({
       label: "YAML Balíček pro /config/packages/",
       icon: Cpu,
       type: "yaml" as const,
-      text: "Vygeneruj kompletní YAML package pro Home Assistant /config/packages/solar_fve.yaml s automatizací spínající relé podle stavu baterie Carspa MKS1000-12 a telemetrie z Proxmox Dell R510 (sensor.proxmox_cpu_usage < 85%).",
+      text: "Vygeneruj kompletní YAML balíček pro Home Assistant /config/packages/solar_fve.yaml s automatizací spínající relé podle stavu baterie Carspa MKS1000-12 a telemetrie z Proxmox Dell R510 (sensor.proxmox_cpu_usage < 85%).",
     },
     {
-      label: "Test AST Bezpečnostního Blokování",
+      label: "Test Bezpečnostního AST Filtru",
       icon: AlertTriangle,
       type: "python" as const,
       text: "Zkus napsat skript, který volá os.system('reboot') a subprocess.Popen(['cat', '/etc/shadow'], shell=True) a eval('__import__(\"os\")') pro otestování AST validátoru a Bandit filtru.",
     },
   ];
 
+  const isLocal = llmConfig.providerType !== "openai";
+
   return (
-    <div className="rog-glass p-4 text-slate-200">
-      <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-2.5">
+    <div className="rog-glass p-4 text-slate-200 rounded-xl border border-white/10">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3 border-b border-white/10 pb-2.5">
         <div className="flex items-center space-x-2">
           <Sparkles className="w-4 h-4 text-cyan-400" />
           <h2 className="text-sm font-bold tracking-wide uppercase text-slate-100">
-            Prompt Engineering &amp; AI Asistent
+            Tvorba Promptů &amp; Kódový Asistent pro Home Assistant
           </h2>
         </div>
-        <div className="flex items-center space-x-3 text-xs">
+        <div className="flex items-center space-x-2 text-xs">
+          {/* Active Model & Provider Chip */}
+          <button
+            onClick={onOpenLlmConfig}
+            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border font-mono transition-colors text-[11px] ${
+              isLocal
+                ? "bg-purple-950/70 border-purple-500/50 text-purple-200 hover:bg-purple-900/60"
+                : "bg-cyan-950/70 border-cyan-500/50 text-cyan-200 hover:bg-cyan-900/60"
+            }`}
+          >
+            <Server className="w-3 h-3" />
+            <span className="font-bold">
+              {isLocal ? `Lokální: ${llmConfig.modelName}` : `Cloud: ${llmConfig.modelName}`}
+            </span>
+            <Settings className="w-3 h-3 text-slate-400 ml-1" />
+          </button>
+
           <span className="text-slate-400 font-mono text-[11px]">
-            Token Budget: <strong className="text-cyan-300 font-semibold">{tokenCount}</strong> / 128k
-          </span>
-          <span className="px-2 py-0.5 rounded bg-purple-950/70 border border-purple-500/40 text-purple-300 text-[10px] font-bold">
-            PROMPT CACHED
+            Rozpočet Tokenů: <strong className="text-cyan-300 font-semibold">{tokenCount}</strong> / {llmConfig.contextWindow || "128k"}
           </span>
         </div>
       </div>
@@ -79,7 +102,7 @@ export const PromptWorkbench: React.FC<PromptWorkbenchProps> = ({
       {/* Preset Chips */}
       <div className="mb-3">
         <label className="text-[11px] font-semibold text-slate-400 block mb-1.5 uppercase tracking-wider">
-          Šablony z inventáře (Dell R510, HAOS, ESP32-S3, Carspa MKS1000-12):
+          Přednastavené Šablony z Inventáře (Dell R510, HAOS, ESP32-S3, Carspa):
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {presets.map((preset, idx) => {
@@ -131,26 +154,21 @@ export const PromptWorkbench: React.FC<PromptWorkbenchProps> = ({
                 contextType === "yaml" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/50" : "text-slate-400"
               }`}
             >
-              YAML Package
+              YAML Balíček (.yaml)
             </button>
           </div>
 
-          {/* Model Selector */}
-          <div className="flex items-center space-x-1.5 text-xs text-slate-400">
+          {/* Active Model Indicator */}
+          <div className="flex items-center space-x-1 text-xs text-slate-400 font-mono">
             <span>Model:</span>
-            <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              className="bg-slate-900 border border-white/10 text-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-cyan-400"
-            >
-              <option value="gpt-4o">gpt-4o (Structured)</option>
-              <option value="gpt-4o-mini">gpt-4o-mini (Speed)</option>
-            </select>
+            <span className="px-2 py-0.5 rounded bg-slate-900 border border-white/10 text-cyan-300 font-bold">
+              {llmConfig.modelName}
+            </span>
           </div>
 
           {/* Temperature Slider */}
           <div className="flex items-center space-x-2 text-xs text-slate-400">
-            <span>Temp: {temperature}</span>
+            <span>Teplota: {temperature}</span>
             <input
               type="range"
               min="0"
@@ -165,7 +183,7 @@ export const PromptWorkbench: React.FC<PromptWorkbenchProps> = ({
 
         {/* Generate Button */}
         <button
-          onClick={() => onStreamGenerate(promptText, contextType, model, temperature)}
+          onClick={() => onStreamGenerate(promptText, contextType, llmConfig.modelName, temperature)}
           disabled={isStreaming}
           className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-lg ${
             isStreaming
@@ -176,12 +194,12 @@ export const PromptWorkbench: React.FC<PromptWorkbenchProps> = ({
           {isStreaming ? (
             <>
               <RotateCcw className="w-3.5 h-3.5 animate-spin text-purple-300" />
-              <span>STREAMOVÁNÍ SSE...</span>
+              <span>STREAMOVÁNÍ ODPOVĚDI...</span>
             </>
           ) : (
             <>
               <Zap className="w-3.5 h-3.5 text-slate-950 fill-current" />
-              <span>GENEROVAT KÓD (SSE)</span>
+              <span>GENEROVAT KÓD ({isLocal ? "LOKÁLNÍ LLM" : "GPT-4o"})</span>
             </>
           )}
         </button>

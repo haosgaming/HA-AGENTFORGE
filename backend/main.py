@@ -57,6 +57,14 @@ class PromptStreamRequest(BaseModel):
     context_type: str = Field(default="python", description="'python' nebo 'yaml'")
     model: str = Field(default="gpt-4o")
     temperature: float = Field(default=0.2)
+    provider: str = Field(default="openai", description="'local_ollama' | 'local_v1' | 'openai'")
+    base_url: Optional[str] = Field(default="http://192.168.1.108:11434")
+    api_key: Optional[str] = None
+
+
+class TestLocalLlmRequest(BaseModel):
+    base_url: str = Field(default="http://192.168.1.108:11434")
+    provider_type: str = Field(default="local_ollama")
 
 
 class ValidateCodeRequest(BaseModel):
@@ -89,18 +97,21 @@ class GitCommitRequest(BaseModel):
     commit_message: str
 
 
-# 1. SSE Endpoint for Real-time Streaming into Editor
+# 1. SSE Endpoint for Real-time Streaming into Editor (Local LLM or OpenAI)
 @app.post("/api/ai/stream-optimize")
 async def stream_optimize(request: PromptStreamRequest):
     """
-    Server-Sent Events endpoint streaming GPT-4o generation chunks
+    Server-Sent Events endpoint streaming local LLM (Ollama/vLLM) or GPT-4o generation chunks
     directly into Monaco Editor.
     """
     stream_generator = ai_service.stream_optimize_prompt(
         prompt=request.prompt,
         context_type=request.context_type,
         model=request.model,
-        temperature=request.temperature
+        temperature=request.temperature,
+        provider=request.provider,
+        base_url=request.base_url,
+        api_key=request.api_key
     )
     return StreamingResponse(
         stream_generator,
@@ -110,6 +121,19 @@ async def stream_optimize(request: PromptStreamRequest):
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no"
         }
+    )
+
+
+# 1b. Test Local LLM Connection & Model Discovery
+@app.post("/api/ai/local-llm/test")
+async def test_local_llm(req: TestLocalLlmRequest):
+    """
+    Tests socket connectivity to local Ollama/vLLM instance on Dell R510 (192.168.1.108)
+    and discovers downloaded GGUF models.
+    """
+    return await ai_service.test_local_llm_connection(
+        base_url=req.base_url,
+        provider_type=req.provider_type
     )
 
 

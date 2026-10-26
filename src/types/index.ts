@@ -87,3 +87,60 @@ export interface CronTask {
   last_status: "SUCCESS" | "FAILED" | "PENDING";
   created_at: string;
 }
+
+// Konfigurace LLM Poskytovatele (Lokální Ollama / vLLM vs Cloud OpenAI)
+export type LlmProviderType = "local_ollama" | "local_v1" | "openai";
+
+export interface LlmProviderConfig {
+  providerType: LlmProviderType;
+  baseUrl: string;
+  apiKey: string;
+  modelName: string;
+  contextWindow: number;
+  temperature: number;
+  isConnected: boolean;
+  detectedModels: string[];
+  latencyMs: number | null;
+  lastTestedAt: string | null;
+}
+
+// SLM vs GPT-4o Model Playground Types
+export interface StructuralAnalysis {
+  imports: string[];
+  asyncCoroutines: string[];
+  syncFunctions: string[];
+  hasAsyncLoop: boolean;
+  hasBlockingCalls: boolean;
+  hasErrorHandling: boolean;
+  hasExplicitTimeout: boolean;
+  hasDebounceGuard: boolean;
+  hasHardwareProtection: boolean;
+  safetyScore: number;
+  linesCount: number;
+  astNodesEstimated: number;
+  blockingCallDetails?: string[];
+}
+
+export interface ModelComparisonResult {
+  modelId: string;
+  modelName: string;
+  provider: "OpenAI Cloud" | "Local SLM (Dell R510 Proxmox)";
+  quantization?: string;
+  hardwareHost: string;
+  latencyMs: number;
+  tokensPerSec: number;
+  tokenCount: number;
+  code: string;
+  analysis: StructuralAnalysis;
+  astResult: AstValidationResult;
+  notes: string;
+}
+
+export interface StructuralDiffMetric {
+  category: string;
+  aspect: string;
+  gptValue: string;
+  slmValue: string;
+  status: "MATCH" | "GPT_SUPERIOR" | "SLM_SUPERIOR" | "WARNING" | "CRITICAL";
+  description: string;
+}
